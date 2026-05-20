@@ -1,0 +1,186 @@
+"""
+Scrub typhus risk prediction base code.
+
+Project goal:
+Use weather data from the previous 1 to 3 weeks to predict whether this week is risky.
+
+Students should complete each TODO section.
+"""
+
+from pathlib import Path
+
+import pandas as pd
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
+from sklearn.model_selection import train_test_split
+from sklearn.tree import DecisionTreeClassifier
+
+
+DATA_DIR = Path("data")
+TARGET_COLUMN = "risk"
+
+
+ENGLISH_COLUMNS = [
+    "region",
+    "year",
+    "week",
+    "patient_count",
+    "avg_temp",
+    "max_temp",
+    "min_temp",
+    "rainfall",
+    "avg_wind",
+    "avg_humidity",
+    "lag1_avg_temp",
+    "lag1_max_temp",
+    "lag1_min_temp",
+    "lag1_rainfall",
+    "lag1_avg_wind",
+    "lag1_avg_humidity",
+    "lag2_avg_temp",
+    "lag2_max_temp",
+    "lag2_min_temp",
+    "lag2_rainfall",
+    "lag2_avg_wind",
+    "lag2_avg_humidity",
+    "lag3_avg_temp",
+    "lag3_max_temp",
+    "lag3_min_temp",
+    "lag3_rainfall",
+    "lag3_avg_wind",
+    "lag3_avg_humidity",
+]
+
+
+def find_data_file(data_dir: Path) -> Path:
+    """Find the integrated CSV file in the data folder."""
+    csv_files = sorted(data_dir.glob("*.csv"))
+    if not csv_files:
+        raise FileNotFoundError("No CSV files found in the data folder.")
+
+    # TODO: Students may choose a specific CSV file.
+    # Hint: The largest CSV is usually the integrated national dataset.
+    return max(csv_files, key=lambda path: path.stat().st_size)
+
+
+def load_data(path: Path) -> pd.DataFrame:
+    """Load CSV data and rename columns to English names."""
+    # TODO: Read the CSV file.
+    # Hint: pd.read_csv(path, encoding="utf-8-sig")
+    df = None
+
+    # TODO: Rename columns to ENGLISH_COLUMNS.
+    # Hint: df.columns = ENGLISH_COLUMNS
+
+    return df
+
+
+def make_risk_label(df: pd.DataFrame) -> pd.DataFrame:
+    """Create a risk label from patient_count."""
+    # TODO: Create TARGET_COLUMN.
+    #
+    # Example:
+    # patient_count >= 4 -> 1, risky
+    # patient_count < 4  -> 0, not risky
+    #
+    # df[TARGET_COLUMN] = ...
+    return df
+
+
+def add_season_features(df: pd.DataFrame) -> pd.DataFrame:
+    """Add week-based season features."""
+    # TODO: Add fall season features.
+    #
+    # Example:
+    # week 42 to 49 -> fall_peak = 1
+    # week 44 to 48 -> fall_core_peak = 1
+    #
+    # df["fall_peak"] = ...
+    # df["fall_core_peak"] = ...
+    return df
+
+
+def select_features(df: pd.DataFrame):
+    """Select input features and target."""
+    # Use only information available before this week's patient count is known.
+    # Do not use patient_count as an input feature.
+    # If the goal is early prediction, do not use current week weather either.
+
+    feature_columns = [
+        "year",
+        "week",
+        "lag1_avg_temp",
+        "lag1_max_temp",
+        "lag1_min_temp",
+        "lag1_rainfall",
+        "lag1_avg_wind",
+        "lag1_avg_humidity",
+        "lag2_avg_temp",
+        "lag2_max_temp",
+        "lag2_min_temp",
+        "lag2_rainfall",
+        "lag2_avg_wind",
+        "lag2_avg_humidity",
+        "lag3_avg_temp",
+        "lag3_max_temp",
+        "lag3_min_temp",
+        "lag3_rainfall",
+        "lag3_avg_wind",
+        "lag3_avg_humidity",
+        "fall_peak",
+        "fall_core_peak",
+        "region",
+    ]
+
+    X = df[feature_columns]
+    y = df[TARGET_COLUMN]
+
+    # TODO: Convert region text into numeric columns.
+    # Hint: X = pd.get_dummies(X, columns=["region"])
+
+    return X, y
+
+
+def train_model(X_train, y_train):
+    """Train a basic model."""
+    model = DecisionTreeClassifier(
+        max_depth=5,
+        random_state=42,
+    )
+    model.fit(X_train, y_train)
+    return model
+
+
+def evaluate_model(model, X_test, y_test):
+    """Print evaluation results."""
+    y_pred = model.predict(X_test)
+
+    print("Accuracy:", accuracy_score(y_test, y_pred))
+    print("\nConfusion Matrix")
+    print(confusion_matrix(y_test, y_pred))
+    print("\nClassification Report")
+    print(classification_report(y_test, y_pred))
+
+
+def main():
+    data_path = find_data_file(DATA_DIR)
+    df = load_data(data_path)
+
+    df = make_risk_label(df)
+    df = add_season_features(df)
+
+    X, y = select_features(df)
+
+    X_train, X_test, y_train, y_test = train_test_split(
+        X,
+        y,
+        test_size=0.2,
+        random_state=42,
+        stratify=y,
+    )
+
+    model = train_model(X_train, y_train)
+    evaluate_model(model, X_test, y_test)
+
+
+if __name__ == "__main__":
+    main()

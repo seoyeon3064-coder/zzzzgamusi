@@ -1,0 +1,52 @@
+{
+  "source_file": "data\\전국_AI학습용_최종데이터_지역정렬.csv",
+  "output_file": "data\\processed\\zzzzgamusi_processed.csv",
+  "rows": 8352,
+  "columns": [
+    "region",
+    "year",
+    "week",
+    "patient_count",
+    "avg_temp",
+    "max_temp",
+    "min_temp",
+    "rainfall",
+    "avg_wind",
+    "avg_humidity",
+    "lag1_avg_temp",
+    "lag1_max_temp",
+    "lag1_min_temp",
+    "lag1_rainfall",
+    "lag1_avg_wind",
+    "lag1_avg_humidity",
+    "lag2_avg_temp",
+    "lag2_max_temp",
+    "lag2_min_temp",
+    "lag2_rainfall",
+    "lag2_avg_wind",
+    "lag2_avg_humidity",
+    "lag3_avg_temp",
+    "lag3_max_temp",
+    "lag3_min_temp",
+    "lag3_rainfall",
+    "lag3_avg_wind",
+    "lag3_avg_humidity",
+    "week_sin",
+    "week_cos",
+    "fall_peak",
+    "fall_core_peak",
+    "split",
+    "risk_label",
+    "is_risky"
+  ],
+  "thresholds": {
+    "q50": 1.0,
+    "q75": 4.0,
+    "q90": 15.0
+  },
+  "splits": {
+    "train": 6688,
+    "valid": 832,
+    "test": 832
+  }
+}
