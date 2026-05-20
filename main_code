@@ -1,10 +1,10 @@
 """
-Scrub typhus risk prediction base code.
+쯔쯔가무시 발병 위험도 예측 베이스 코드.
 
-Project goal:
-Use weather data from the previous 1 to 3 weeks to predict whether this week is risky.
+프로젝트 목표:
+최근 1~3주 전 날씨 데이터를 이용해서 이번 주가 위험한지 예측합니다.
 
-Students should complete each TODO section.
+학생들은 TODO 부분을 직접 완성하면 됩니다.
 """
 
 from pathlib import Path
@@ -52,47 +52,47 @@ ENGLISH_COLUMNS = [
 
 
 def find_data_file(data_dir: Path) -> Path:
-    """Find the integrated CSV file in the data folder."""
+    """data 폴더에서 사용할 CSV 파일을 찾습니다."""
     csv_files = sorted(data_dir.glob("*.csv"))
     if not csv_files:
         raise FileNotFoundError("No CSV files found in the data folder.")
 
-    # TODO: Students may choose a specific CSV file.
-    # Hint: The largest CSV is usually the integrated national dataset.
+    # TODO: 학생들이 직접 사용할 CSV 파일을 선택해도 됩니다.
+    # 힌트: 가장 큰 CSV 파일이 보통 전국 통합 데이터입니다.
     return max(csv_files, key=lambda path: path.stat().st_size)
 
 
 def load_data(path: Path) -> pd.DataFrame:
-    """Load CSV data and rename columns to English names."""
-    # TODO: Read the CSV file.
-    # Hint: pd.read_csv(path, encoding="utf-8-sig")
+    """CSV 데이터를 불러오고 컬럼명을 영어로 바꿉니다."""
+    # TODO: CSV 파일을 pandas로 읽어오세요.
+    # 힌트: pd.read_csv(path, encoding="utf-8-sig")
     df = None
 
-    # TODO: Rename columns to ENGLISH_COLUMNS.
-    # Hint: df.columns = ENGLISH_COLUMNS
+    # TODO: 컬럼명을 ENGLISH_COLUMNS로 바꾸세요.
+    # 힌트: df.columns = ENGLISH_COLUMNS
 
     return df
 
 
 def make_risk_label(df: pd.DataFrame) -> pd.DataFrame:
-    """Create a risk label from patient_count."""
-    # TODO: Create TARGET_COLUMN.
+    """환자수(patient_count)를 기준으로 위험 여부 라벨을 만듭니다."""
+    # TODO: TARGET_COLUMN 컬럼을 새로 만드세요.
     #
-    # Example:
-    # patient_count >= 4 -> 1, risky
-    # patient_count < 4  -> 0, not risky
+    # 예시 기준:
+    # patient_count >= 4 -> 1, 위험
+    # patient_count < 4  -> 0, 위험 아님
     #
     # df[TARGET_COLUMN] = ...
     return df
 
 
 def add_season_features(df: pd.DataFrame) -> pd.DataFrame:
-    """Add week-based season features."""
-    # TODO: Add fall season features.
+    """주차(week)를 이용해 계절 관련 feature를 추가합니다."""
+    # TODO: 가을철 고위험 기간 feature를 추가하세요.
     #
-    # Example:
-    # week 42 to 49 -> fall_peak = 1
-    # week 44 to 48 -> fall_core_peak = 1
+    # 예시:
+    # 42~49주차 -> fall_peak = 1
+    # 44~48주차 -> fall_core_peak = 1
     #
     # df["fall_peak"] = ...
     # df["fall_core_peak"] = ...
@@ -100,10 +100,10 @@ def add_season_features(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def select_features(df: pd.DataFrame):
-    """Select input features and target."""
-    # Use only information available before this week's patient count is known.
-    # Do not use patient_count as an input feature.
-    # If the goal is early prediction, do not use current week weather either.
+    """모델에 사용할 입력 feature와 정답 target을 선택합니다."""
+    # 이번 주 환자수를 알기 전에 사용할 수 있는 정보만 입력값으로 사용합니다.
+    # patient_count는 정답을 만들 때만 사용하고, 입력 feature로 사용하면 안 됩니다.
+    # 조기 예측이 목표라면 이번 주 날씨 데이터도 입력 feature에서 제외하는 것이 좋습니다.
 
     feature_columns = [
         "year",
@@ -134,14 +134,14 @@ def select_features(df: pd.DataFrame):
     X = df[feature_columns]
     y = df[TARGET_COLUMN]
 
-    # TODO: Convert region text into numeric columns.
-    # Hint: X = pd.get_dummies(X, columns=["region"])
+    # TODO: region 같은 문자형 컬럼을 숫자형 컬럼으로 변환하세요.
+    # 힌트: X = pd.get_dummies(X, columns=["region"])
 
     return X, y
 
 
 def train_model(X_train, y_train):
-    """Train a basic model."""
+    """기본 모델을 학습합니다."""
     model = DecisionTreeClassifier(
         max_depth=5,
         random_state=42,
@@ -151,7 +151,7 @@ def train_model(X_train, y_train):
 
 
 def evaluate_model(model, X_test, y_test):
-    """Print evaluation results."""
+    """모델 평가 결과를 출력합니다."""
     y_pred = model.predict(X_test)
 
     print("Accuracy:", accuracy_score(y_test, y_pred))
