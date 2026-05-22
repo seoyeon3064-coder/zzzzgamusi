@@ -8,23 +8,26 @@
 """
 
 from pathlib import Path
-from xml.parsers.expat import model
 
+import numpy as np
 import pandas as pd
-from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 from sklearn.model_selection import train_test_split
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier
-from lightgbm import LGBMClassifier
+from lightgbm import LGBMRegressor
+import joblib
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 
 DATA_DIR = Path("data")
-TARGET_COLUMN = "risk"
-
+TARGET_COLUMN = "patient_count"
 
 ENGLISH_COLUMNS = [
     "region",
     "year",
+    "month",
     "week",
     "patient_count",
     "avg_temp",
@@ -51,8 +54,8 @@ ENGLISH_COLUMNS = [
     "lag3_rainfall",
     "lag3_avg_wind",
     "lag3_avg_humidity",
+    "population",
 ]
-
 
 def find_data_file(data_dir: Path) -> Path:
     """data 폴더에서 사용할 CSV 파일을 찾습니다."""
@@ -61,52 +64,36 @@ def find_data_file(data_dir: Path) -> Path:
         raise FileNotFoundError("No CSV files found in the data folder.")
 
     # TODO: 학생들이 직접 사용할 CSV 파일을 선택해도 됩니다.
-    return Path("D:/보충플젝/전국_AI학습용_통합데이터_연도정렬.csv")
-
+    return Path("D:/보충플젝/통합_AI_인구데이터.csv")
 
 def load_data(path: Path) -> pd.DataFrame:
     """CSV 데이터를 불러오고 컬럼명을 영어로 바꿉니다."""
 
     # TODO: CSV 파일을 pandas로 읽어오세요.
     # (만약 한글 깨짐 에러가 나면 encoding='cp949'를 괄호 안에 추가하세요)
-    df = pd.read_csv(path)
-
+    df = pd.read_csv(path, encoding='cp949')
 
     # TODO: 컬럼명을 ENGLISH_COLUMNS로 바꾸세요.
     df.columns = ENGLISH_COLUMNS
 
     return df
 
-
-def make_risk_label(df: pd.DataFrame) -> pd.DataFrame:
-    """환자수(patient_count)를 기준으로 위험 여부 라벨을 만듭니다."""
-    # TODO: TARGET_COLUMN 컬럼을 새로 만드세요.
-    # 1. 지역별(region)로 묶어서, 환자 수의 상위 25%(0.75 분위수) 값을 계산합니다.
-    # transform은 계산된 지역별 기준값을 원래 데이터프레임의 각 행에 알맞게 매핑해줍니다.
-    regional_threshold = df.groupby('region')['patient_count'].transform(lambda x: x.quantile(0.75))
-    
-    # 2. 이번 주 환자 수가 '해당 지역의 상위 25% 기준치'보다 크거나 같으면 위험(1)으로 봅니다.
-    # 단, 기준치가 0이 나오는 안전한 지역/시기를 대비해 '최소 1명 이상일 것'이라는 조건도 추가합니다.
-    df[TARGET_COLUMN] = ((df['patient_count'] >= regional_threshold) & (df['patient_count'] > 0)).astype(int)
-    return df
-
-
 def add_season_features(df: pd.DataFrame) -> pd.DataFrame:
     """주차(week)를 이용해 계절 관련 feature를 추가합니다."""
     # TODO: 가을철 고위험 기간 feature를 추가하세요.
     # 1. 넓은 유행기 (직접 확인하신 42~51주차)
-    df["fall_peak"] = df["week"].between(42, 51).astype(int)
+    df["fall_peak"] = df["month"].between(10,11).astype(int)
     
-    # 2. 집중 유행기 (선택 사항)
-    # 42~51주 안에서도 환자 수가 폭발적으로 많은 '최정점' 구간이 있다면 
-    # 눈으로 확인하신 후 아래 숫자를 바꿔주세요. (예: 45~48주)
-    # 만약 구분이 어렵다면 이 줄은 삭제하셔도 무방합니다.
-    df["fall_core_peak"] = df["week"].between(44, 48).astype(int)
+#     # 2. 집중 유행기 (선택 사항)
+#     # 42~51주 안에서도 환자 수가 폭발적으로 많은 '최정점' 구간이 있다면 
+#     # 눈으로 확인하신 후 아래 숫자를 바꿔주세요. (예: 45~48주)
+#     # 만약 구분이 어렵다면 이 줄은 삭제하셔도 무방합니다.
+#     df["fall_core_peak"] = df["week"].between(44, 48).astype(int)
     return df
 
 def add_advanced_features(df: pd.DataFrame) -> pd.DataFrame:
     """기존 날씨 데이터를 조합하여 더 강력한 힌트를 만듭니다."""
-    
+
     # 1. 일교차 (최고기온 - 최저기온): 가을철 큰 일교차가 진드기 활동에 영향을 줄 수 있음
     df['temp_diff'] = df['max_temp'] - df['min_temp']
     df['lag1_temp_diff'] = df['lag1_max_temp'] - df['lag1_min_temp']
@@ -116,9 +103,11 @@ def add_advanced_features(df: pd.DataFrame) -> pd.DataFrame:
     
     # 3. 최근 3주간의 '누적' 강수량 (땅이 얼마나 습한가?)
     df['total_rain_3w'] = df['lag1_rainfall'] + df['lag2_rainfall'] + df['lag3_rainfall']
+
+    # 25년 9월부터 신고기준 변경으로 환자수 급감
+    df['is_after_2025'] = (df['year'] >= 2025).astype(int)
     
     return df
-
 
 def select_features(df: pd.DataFrame):
     """모델에 사용할 입력 feature와 정답 target을 선택합니다."""
@@ -128,6 +117,7 @@ def select_features(df: pd.DataFrame):
 
     feature_columns = [
         "year",
+        "month",
         "week",
         "lag1_avg_temp",
         "lag1_max_temp",
@@ -147,13 +137,12 @@ def select_features(df: pd.DataFrame):
         "lag3_rainfall",
         "lag3_avg_wind",
         "lag3_avg_humidity",
-        "fall_peak",
-        "fall_core_peak",
         "region",
-        "temp_diff",
         "lag1_temp_diff",
         "avg_temp_3w",
         "total_rain_3w",
+        "fall_peak",
+        "is_after_2025",
     ]
 
     X = df[feature_columns]
@@ -166,34 +155,11 @@ def select_features(df: pd.DataFrame):
     return X, y
 
 
-# def train_model(X_train, y_train):
-#     """기본 모델을 학습합니다."""
-#     model = DecisionTreeClassifier(
-#         max_depth=5, # 질문 꼬리물기를 5번까지만 허용하여 암기(과적합)를 방지
-#         class_weight="balanced", # 🌟 [추가] 위험(1)을 틀리면 가중치(벌점)를 더 줍니다!
-#         random_state=42
-#     )
-#     model.fit(X_train, y_train)
-#     return model
-
-# def train_model(X_train, y_train):
-#     """집단 지성(랜덤 포레스트) 모델로 업그레이드하여 학습합니다."""
-#     model = RandomForestClassifier(
-#         n_estimators=100,        # 🌟 핵심: 나무를 100그루 심어서 다수결 투표를 합니다!
-#         max_depth=7,             # 각 나무의 꼬리물기 질문은 7번까지만 허용 (과적합 방지)
-#         class_weight="balanced", # 아까 썼던 필살기 1번(위험에 벌점 주기)도 그대로 유지합니다.
-#         random_state=42,
-#         n_jobs=-1                # (보너스 팁) 컴퓨터의 모든 CPU 코어를 사용해서 계산 속도를 높입니다.
-#     )
-    
-#     # 100그루의 나무들에게 동시에 학습을 지시합니다.
-#     model.fit(X_train, y_train)
-#     return model
-
-# 2. 기존 train_model 함수를 아래 코드로 완전히 교체
+# 2. 학습
 def train_model(X_train, y_train):
     """최신 부스팅 알고리즘인 LightGBM 모델로 학습합니다."""
-    model = LGBMClassifier(
+
+    model = LGBMRegressor(
         n_estimators=100,        # 이어달리기를 100번 반복합니다.
         max_depth=7,             # 과대적합 방지를 위해 나무 깊이를 제한합니다.
         learning_rate=0.05,      # 얼마나 꼼꼼히 학습할지 (보통 0.05 ~ 0.1 사이를 씁니다)
@@ -202,27 +168,10 @@ def train_model(X_train, y_train):
         n_jobs=-1,
         force_row_wise=True      # 경고 메시지 방지용 설정
     )
-    
+
     # 모델 학습
-    model.fit(X_train, y_train)
+    model.fit(X_train, y_train, sample_weight=weights)
     return model
-
-
-def evaluate_model(model, X_test, y_test):
-    """모델 평가 결과를 출력합니다."""
-    y_pred = model.predict(X_test)
-
-    print("====================================")
-    print("🎯 AI 예측 모델 성적표 🎯")
-    print("====================================")
-    print(f"✅ 전체 정확도 (Accuracy): {accuracy_score(y_test, y_pred):.4f}")
-    
-    print("\n🔍 오차 행렬 (Confusion Matrix)")
-    print(confusion_matrix(y_test, y_pred))
-    
-    print("\n📊 상세 분류 리포트 (Classification Report)")
-    print(classification_report(y_test, y_pred))
-
 
 def main():
     # 1. 데이터 준비
@@ -230,7 +179,9 @@ def main():
     df = load_data(data_path)
 
     # 2. 데이터 가공
-    df = make_risk_label(df)
+
+    weights = X_train['is_after_2025'].apply(lambda x: 3.0 if x == 1 else 1.0)
+
     df = add_season_features(df)
     df = add_advanced_features(df)
     X, y = select_features(df)
@@ -241,12 +192,42 @@ def main():
         y,
         test_size=0.2,
         random_state=42,
-        stratify=y, # 시험지에도 위험/안전 비율이 골고루 섞이도록 설정
+        shuffle=False # 시계열 데이터이므로 섞지 않고 순서대로 나눕니다.
     )
 
     # 4. 모델 학습 및 평가
     model = train_model(X_train, y_train)
-    evaluate_model(model, X_test, y_test)
+
+    # 1. 모델이 예측한 0 또는 1의 결과 (y_pred)
+    y_pred = model.predict(X_test)
+    evaluate_regression_model(y_test, y_pred)
+
+    joblib.dump(model, './tsutsugamushi_model1.joblib')
+    print("✅ 모델 저장 완료!")
+
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+import numpy as np
+
+# 2. 모델 평가 (회귀 모델용)
+def evaluate_regression_model(y_true, y_pred):
+    """
+    회귀 모델의 평가지표(MAE, RMSE, R2)를 출력합니다.
+    """
+    mae = mean_absolute_error(y_true, y_pred)
+    mse = mean_squared_error(y_true, y_pred)
+    rmse = np.sqrt(mse) # RMSE: 오차의 단위가 환자 수와 같아져서 해석하기 제일 좋아!
+    r2 = r2_score(y_true, y_pred)
+    
+    print("====================================")
+    print("📈 회귀 모델 평가 성적표 📈")
+    print("====================================")
+    print(f"✅ MAE (평균 오차): {mae:.2f} 명")
+    print(f"✅ RMSE (표준 오차): {rmse:.2f} 명")
+    print(f"✅ R2 Score (설명력): {r2:.4f}")
+    print("====================================")
+    print("💡 해석 가이드:")
+    print(" - MAE/RMSE가 작을수록 모델이 실제 환자 수를 잘 맞추고 있다는 뜻이야!")
+    print(" - R2 Score는 1에 가까울수록 모델이 데이터를 아주 잘 설명하고 있다는 뜻이야.")
 
 if __name__ == "__main__":
     main()
